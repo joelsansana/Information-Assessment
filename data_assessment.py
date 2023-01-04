@@ -8,6 +8,7 @@ import seaborn as sns
 
 from matplotlib import pyplot as plt
 from pylab import rcParams
+from sklearn.feature_selection import mutual_info_regression
 
 plt.style.use('seaborn-whitegrid')
 rcParams['figure.figsize'] = 15, 8
@@ -71,7 +72,6 @@ plt.xticks(fontsize=16)
 plt.yticks(fontsize=16)
 plt.legend(loc='best')
 
-
 fig, ax = plt.subplots()
 ax.plot(ts1/(3600*24), Xs1['Foil/(kg/h)'], label='1 grade')
 ax.plot(ts2/(3600*24), Xs2['Foil/(kg/h)'], label='3 grade')
@@ -108,6 +108,18 @@ sns.heatmap(C2, vmin=-1, vmax=1, annot=True, fmt=".2f", cmap="Spectral", ax=ax[1
 ax[1].set_title('3 grades', fontsize=18)
 sns.heatmap(C3, vmin=-1, vmax=1, annot=True, fmt=".2f", cmap="Spectral", ax=ax[2])
 ax[2].set_title('DoE', fontsize=18)
+
+mi1 = mutual_info_regression(Xs1, ys1)
+mi2 = mutual_info_regression(Xs2, ys2)
+mi3 = mutual_info_regression(Xs3, ys3)
+
+fig, ax = plt.subplots(nrows=3, ncols=1)
+sns.barplot(x=Xs1.columns, y=mi1, ax=ax[0])
+sns.barplot(x=Xs2.columns, y=mi2, ax=ax[1])
+sns.barplot(x=Xs3.columns, y=mi3, ax=ax[2])
+ax[0].set_ylabel('MI - 1 grade', fontsize=18)
+ax[1].set_ylabel('MI - 3 grades', fontsize=18)
+ax[2].set_ylabel('MI - DoE', fontsize=18)
 
 # %%
 end = time.time()
