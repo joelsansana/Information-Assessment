@@ -8,7 +8,13 @@ import seaborn as sns
 
 from matplotlib import pyplot as plt
 from pylab import rcParams
+from scipy.cluster import hierarchy as hc
+from scipy.special import rel_entr
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.decomposition import PCA
 from sklearn.feature_selection import mutual_info_regression
+from sklearn.neighbors import KernelDensity
+from sklearn.preprocessing import StandardScaler
 
 plt.style.use('seaborn-whitegrid')
 rcParams['figure.figsize'] = 15, 8
@@ -168,6 +174,77 @@ sns.scatterplot(data=dfT2, x='PC1', y='PC2', hue='Label', palette="Spectral", ax
 ax[1].set_title('3 grades', fontsize=18)
 sns.scatterplot(data=dfT3, x='PC1', y='PC2', hue='Label', palette="Spectral", ax=ax[2])
 ax[2].set_title('DoE', fontsize=18)
+
+#%% HC
+fig, ax = plt.subplots(nrows=1, ncols=3)
+hc.dendrogram(
+    hc.linkage(Z1, method='ward'), 
+    truncate_mode='lastp',
+    p=10,
+    color_threshold=75, 
+    above_threshold_color='y', 
+    ax=ax[0]
+    )
+hc.dendrogram(
+    hc.linkage(Z2, method='ward'), 
+    truncate_mode='lastp',
+    p=10,
+    color_threshold=75, 
+    above_threshold_color='y', 
+    ax=ax[1]
+    )
+hc.dendrogram(
+    hc.linkage(Z3, method='ward'), 
+    truncate_mode='lastp',
+    p=10,
+    color_threshold=75, 
+    above_threshold_color='y', 
+    ax=ax[2]
+    )
+ax[0].set_title('1 grade', fontsize=18)
+ax[1].set_title('3 grades', fontsize=18)
+ax[2].set_title('DoE', fontsize=18)
+plt.xticks(rotation=90)
+plt.tight_layout()
+
+# cluster = AgglomerativeClustering(
+#     n_clusters=3, 
+#     affinity='euclidean', 
+#     linkage='ward'
+#     )
+# hc_class = cluster.fit_predict(Z)
+
+# # Plot scores HC
+# dfT['HC class'] = hc_class
+# sns.pairplot(
+#     data=dfT,
+#     vars=[f'PC{i}' for i in range(1,2+1)],
+#     hue='HC class',
+#     palette='tab10'
+#     )
+
+#%% Entropy
+# Fit a KDE to the data
+kde1 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys1.values.reshape(-1, 1))
+kde2 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys2.values.reshape(-1, 1))
+kde3 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys3.values.reshape(-1, 1))
+
+# # Use the KDE to estimate the probability distribution of the data
+# x_min, x_max = data.min(), data.max()
+# x = np.linspace(x_min, x_max, 1000)
+# log_prob = kde.score_samples(x.reshape(-1, 1))
+# prob = np.exp(log_prob)
+
+kl1 = rel_entr(ys1.values, ys1.values).sum() # ou Z-score
+kl2 = rel_entr(ys2.values, ys2.values).sum()
+kl3 = rel_entr(ys3.values, ys3.values).sum()
+
+fig, ax = plt.subplots()
+sns.barplot(
+    x=[ys1.name, ys2.name, ys3.name,], 
+    y=[kl1, kl2, kl3,], 
+    ax=ax
+    )
 
 end = time.time()
 print('Run time: {:.0f} seconds'.format(end-start))
