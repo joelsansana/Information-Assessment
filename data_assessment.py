@@ -121,7 +121,54 @@ ax[0].set_ylabel('MI - 1 grade', fontsize=18)
 ax[1].set_ylabel('MI - 3 grades', fontsize=18)
 ax[2].set_ylabel('MI - DoE', fontsize=18)
 
-# %%
+#%% PCA
+Z1 = StandardScaler().fit_transform(Xs1)
+Z2 = StandardScaler().fit_transform(Xs2)
+Z3 = StandardScaler().fit_transform(Xs3)
+
+pca1 = PCA().fit(Z1)
+pca2 = PCA().fit(Z2)
+pca3 = PCA().fit(Z3)
+T1 = pca1.transform(Z1)
+T2 = pca2.transform(Z2)
+T3 = pca3.transform(Z3)
+eig1 = pca1.explained_variance_
+eig2 = pca2.explained_variance_
+eig3 = pca3.explained_variance_
+
+fig, ax = plt.subplots()
+ax.plot(eig1, '-o', label='1 grade')
+ax.plot(eig2, '-o', label='3 grades')
+ax.plot(eig3, '-o', label='DoE')
+ax.axhline(y=1, xmin=0, xmax=5, c='k', ls='--')#%% PCA
+Z1 = StandardScaler().fit_transform(Xs1)
+Z2 = StandardScaler().fit_transform(Xs2)
+Z3 = StandardScaler().fit_transform(Xs3)
+
+pca1 = PCA().fit(Z1)
+pca2 = PCA().fit(Z2)
+pca3 = PCA().fit(Z3)
+T1 = pca1.transform(Z1)
+T2 = pca2.transform(Z2)
+T3 = pca3.transform(Z3)
+eig1 = pca1.explained_variance_
+eig2 = pca2.explained_variance_
+plt.legend(loc='best')
+
+dfT1 = pd.DataFrame(T1[:, :2], columns=['PC1', 'PC2'])
+dfT1['Label'] = ys1.values
+dfT2 = pd.DataFrame(T2[:, :2], columns=['PC1', 'PC2'])
+dfT2['Label'] = ys2.values
+dfT3 = pd.DataFrame(T3[:, :2], columns=['PC1', 'PC2'])
+dfT3['Label'] = ys3.values
+fig, ax = plt.subplots(nrows=1, ncols=3)
+sns.scatterplot(data=dfT1, x='PC1', y='PC2', hue='Label', palette="Spectral", ax=ax[0])
+ax[0].set_title('1 grade', fontsize=18)
+sns.scatterplot(data=dfT2, x='PC1', y='PC2', hue='Label', palette="Spectral", ax=ax[1])
+ax[1].set_title('3 grades', fontsize=18)
+sns.scatterplot(data=dfT3, x='PC1', y='PC2', hue='Label', palette="Spectral", ax=ax[2])
+ax[2].set_title('DoE', fontsize=18)
+
 end = time.time()
 print('Run time: {:.0f} seconds'.format(end-start))
 plt.show()
