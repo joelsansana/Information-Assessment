@@ -24,14 +24,6 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 def parallel_analysis(data, n_iter=1000, n_components=None):
-    # Generate random data with the same number of samples and features
-    random_data = np.random.normal(size=(data.shape[0], data.shape[1]))
-    
-    # Perform PCA on the random data
-    pca = PCA(n_components=n_components)
-    pca.fit(random_data)
-    random_eigenvalues = pca.explained_variance_
-    
     # Perform PCA on the original data
     pca = PCA(n_components=n_components)
     pca.fit(data)
@@ -45,7 +37,7 @@ def parallel_analysis(data, n_iter=1000, n_components=None):
             W[:, j] = data[np.random.permutation(data.shape[0]), j]
         pca_pa = PCA().fit(W)
         pa[i, :] = pca_pa.explained_variance_
-    threshold_eigenvalues = np.percentile(pa, 95, axis=0)
+    threshold_eigenvalues = np.percentile(pa, 90, axis=0)
     
     # Determine the number of components to retain
     n_components_to_retain = 0
@@ -124,28 +116,6 @@ plt.yticks(fontsize=16)
 plt.legend(loc='best')
 
 #%% Colinearity (of X)
-Z1 = StandardScaler().fit_transform(Xs1)
-Z2 = StandardScaler().fit_transform(Xs2)
-Z3 = StandardScaler().fit_transform(Xs3)
-
-eig1, pa1, pc1 = parallel_analysis(Z1, n_iter=100)
-eig2, pa2, pc2 = parallel_analysis(Z2, n_iter=100)
-eig3, pa3, pc3 = parallel_analysis(Z3, n_iter=100)
-
-fig, ax = plt.subplots(nrows=1, ncols=3)
-ax[0].plot(eig1, '-o', label='Eigenvalues')
-ax[1].plot(eig2, '-o', label='Eigenvalues')
-ax[2].plot(eig3, '-o', label='Eigenvalues')
-ax[0].plot(pa1, '-o', label='PA threshold')
-ax[1].plot(pa2, '-o', label='PA threshold')
-ax[2].plot(pa3, '-o', label='PA threshold')
-ax[0].set_title('1 grade', fontsize=18)
-ax[1].set_title('3 grades', fontsize=18)
-ax[2].set_title('DoE', fontsize=18)
-ax[0].legend(loc='upper right', fontsize=16)
-ax[1].legend(loc='upper right', fontsize=16)
-ax[2].legend(loc='upper right', fontsize=16)
-
 C1 = pd.DataFrame(
     data=np.corrcoef(Xs1, rowvar=False), 
     columns=Xs1.columns, 
@@ -171,6 +141,32 @@ sns.heatmap(C2, vmin=-1, vmax=1, annot=True, fmt=".2f", cmap="Spectral", ax=ax[1
 ax[1].set_title('3 grades', fontsize=18)
 sns.heatmap(C3, vmin=-1, vmax=1, annot=True, fmt=".2f", cmap="Spectral", ax=ax[2])
 ax[2].set_title('DoE', fontsize=18)
+
+Z1 = StandardScaler().fit_transform(Xs1)
+Z2 = StandardScaler().fit_transform(Xs2)
+Z3 = StandardScaler().fit_transform(Xs3)
+
+eig1, pa1, pc1 = parallel_analysis(Z1, n_iter=100)
+eig2, pa2, pc2 = parallel_analysis(Z2, n_iter=100)
+eig3, pa3, pc3 = parallel_analysis(Z3, n_iter=100)
+
+col1 = (1 - pc1/Z1.shape[1])*100
+col2 = (1 - pc2/Z2.shape[1])*100
+col3 = (1 - pc3/Z3.shape[1])*100
+
+fig, ax = plt.subplots(nrows=1, ncols=3)
+ax[0].plot(eig1, '-o', label='Eigenvalues')
+ax[1].plot(eig2, '-o', label='Eigenvalues')
+ax[2].plot(eig3, '-o', label='Eigenvalues')
+ax[0].plot(pa1, '-o', label='PA threshold')
+ax[1].plot(pa2, '-o', label='PA threshold')
+ax[2].plot(pa3, '-o', label='PA threshold')
+ax[0].set_title('Colinearity = {:.0f}%'.format(col1), fontsize=18)
+ax[1].set_title('Colinearity = {:.0f}%'.format(col2), fontsize=18)
+ax[2].set_title('Colinearity = {:.0f}%'.format(col3), fontsize=18)
+ax[0].legend(loc='upper right', fontsize=16)
+ax[1].legend(loc='upper right', fontsize=16)
+ax[2].legend(loc='upper right', fontsize=16)
 
 #%% Sparsity of X effects with Y
 c1 = [pearsonr(Xs1[col], ys1)[0] for col in Xs1.columns]
@@ -201,7 +197,10 @@ ax[0].set_ylabel('MI - 1 grade', fontsize=18)
 ax[1].set_ylabel('MI - 3 grades', fontsize=18)
 ax[2].set_ylabel('MI - DoE', fontsize=18)
 
-#%% HC
+#%% Granularity
+# See the smallest unit of a variable
+
+#%% Information content
 fig, ax = plt.subplots(nrows=1, ncols=3)
 hc.dendrogram(
     hc.linkage(Z1, method='ward'), 
@@ -255,22 +254,30 @@ kde1 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys1.values.reshape(-
 kde2 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys2.values.reshape(-1, 1))
 kde3 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys3.values.reshape(-1, 1))
 
-# # Use the KDE to estimate the probability distribution of the data
-# x_min, x_max = data.min(), data.max()
-# x = np.linspace(x_min, x_max, 1000)
-# log_prob = kde.score_samples(x.reshape(-1, 1))
-# prob = np.exp(log_prob)
+# Use the KDE to estimate the probability distribution of the data
+y_min1, y_max1 = ys1.min(), ys1.max()
+y_min2, y_max2 = ys2.min(), ys2.max()
+y_min3, y_max3 = ys3.min(), ys3.max()
+
+x1 = np.linspace(y_min1, y_max1, 1000)
+x2 = np.linspace(y_min2, y_max2, 1000)
+x3 = np.linspace(y_min3, y_max3, 1000)
+
+log_prob1 = kde1.score_samples(x1.reshape(-1, 1))
+prob1 = np.exp(log_prob1)
+log_prob2 = kde2.score_samples(x2.reshape(-1, 1))
+prob2 = np.exp(log_prob2)
+log_prob3 = kde3.score_samples(x3.reshape(-1, 1))
+prob3 = np.exp(log_prob3)
+
+fig, ax = plt.subplots()
+ax.plot(x1, prob1)
+ax.plot(x2, prob2)
+ax.plot(x3, prob3)
 
 kl1 = rel_entr(ys1.values, ys1.values).sum() # ou Z-score
 kl2 = rel_entr(ys2.values, ys2.values).sum()
 kl3 = rel_entr(ys3.values, ys3.values).sum()
-
-fig, ax = plt.subplots()
-sns.barplot(
-    x=[ys1.name, ys2.name, ys3.name,], 
-    y=[kl1, kl2, kl3,], 
-    ax=ax
-    )
 
 end = time.time()
 print('Run time: {:.0f} seconds'.format(end-start))
