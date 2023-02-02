@@ -7,10 +7,11 @@ import pandas as pd
 import seaborn as sns
 
 from matplotlib import pyplot as plt
+from parallel_analysis import *
 from pylab import rcParams
 from scipy.cluster import hierarchy as hc
 from scipy.special import rel_entr
-from scipy.stats import pearsonr
+from scipy.stats import entropy, gaussian_kde, pearsonr
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.decomposition import PCA
 from sklearn.feature_selection import mutual_info_regression
@@ -19,33 +20,6 @@ from sklearn.preprocessing import StandardScaler
 
 plt.style.use('seaborn-whitegrid')
 rcParams['figure.figsize'] = 15, 8
-
-import numpy as np
-from sklearn.decomposition import PCA
-
-def parallel_analysis(data, n_iter=1000, n_components=None):
-    # Perform PCA on the original data
-    pca = PCA(n_components=n_components)
-    pca.fit(data)
-    original_eigenvalues = pca.explained_variance_
-    
-    # Compute the threshold eigenvalue
-    W = np.zeros(data.shape)
-    pa = np.zeros((n_iter, data.shape[1]))
-    for i in range(n_iter):
-        for j in range(data.shape[1]):
-            W[:, j] = data[np.random.permutation(data.shape[0]), j]
-        pca_pa = PCA().fit(W)
-        pa[i, :] = pca_pa.explained_variance_
-    threshold_eigenvalues = np.percentile(pa, 90, axis=0)
-    
-    # Determine the number of components to retain
-    n_components_to_retain = 0
-    for i in range(len(original_eigenvalues)):
-        if original_eigenvalues[i] > threshold_eigenvalues[i]:
-            n_components_to_retain += 1
-    
-    return original_eigenvalues, threshold_eigenvalues, n_components_to_retain
 
 #%% Get data
 df = pd.read_csv('datasets/dataset1/csv_measurements.csv')
@@ -115,7 +89,44 @@ plt.xticks(fontsize=16)
 plt.yticks(fontsize=16)
 plt.legend(loc='best')
 
-#%% Colinearity (of X)
+#%% D1 - Resolution
+# Granularity
+## Count the number of data points
+data_points1 = Xs1.shape[0]
+print("Number of data points 1: ", data_points1)
+## Calculate the number of unique values for each column
+unique1 = Xs1.nunique()
+print("Unique values 1: \n", unique1)
+## Analyze the level of detail
+min_time = Xs1.index.min()
+max_time = Xs1.index.max()
+time_diff1 = max_time - min_time
+print("The measurement period is: ", time_diff1, "min")
+print("The frequency of measurement is: ", data_points1/time_diff1, "measurement/min")
+
+data_points2 = Xs2.shape[0]
+print("Number of data points 2: ", data_points2)
+data_points3 = Xs3.shape[0]
+print("Number of data points 3: ", data_points3)
+
+unique2 = Xs2.nunique()
+print("Unique values 1: \n", unique2)
+unique3 = Xs3.nunique()
+print("Unique values 1: \n", unique3)
+
+min_time = Xs2.index.min()
+max_time = Xs2.index.max()
+time_diff2 = max_time - min_time
+print("The measurement period is: ", time_diff2, "min")
+print("The frequency of measurement is: ", data_points2/time_diff2, "measurement/min")
+min_time = Xs3.index.min()
+max_time = Xs3.index.max()
+time_diff3 = max_time - min_time
+print("The measurement period is: ", time_diff3, "min")
+print("The frequency of measurement is: ", data_points3/time_diff3, "measurement/min")
+
+#%% D2 - Structure
+# Colinearity (of X)
 C1 = pd.DataFrame(
     data=np.corrcoef(Xs1, rowvar=False), 
     columns=Xs1.columns, 
@@ -146,9 +157,9 @@ Z1 = StandardScaler().fit_transform(Xs1)
 Z2 = StandardScaler().fit_transform(Xs2)
 Z3 = StandardScaler().fit_transform(Xs3)
 
-eig1, pa1, pc1 = parallel_analysis(Z1, n_iter=100)
-eig2, pa2, pc2 = parallel_analysis(Z2, n_iter=100)
-eig3, pa3, pc3 = parallel_analysis(Z3, n_iter=100)
+eig1, pa1, pc1 = ParallelAnalysis(Z1, n_iter=100)
+eig2, pa2, pc2 = ParallelAnalysis(Z2, n_iter=100)
+eig3, pa3, pc3 = ParallelAnalysis(Z3, n_iter=100)
 
 col1 = (1 - pc1/Z1.shape[1])*100
 col2 = (1 - pc2/Z2.shape[1])*100
@@ -168,10 +179,10 @@ ax[0].legend(loc='upper right', fontsize=16)
 ax[1].legend(loc='upper right', fontsize=16)
 ax[2].legend(loc='upper right', fontsize=16)
 
-#%% Sparsity of X effects with Y
-c1 = [pearsonr(Xs1[col], ys1)[0] for col in Xs1.columns]
-c2 = [pearsonr(Xs2[col], ys2)[0] for col in Xs2.columns]
-c3 = [pearsonr(Xs3[col], ys3)[0] for col in Xs3.columns]
+# Sparsity of X effects with Y
+c1 = [FeatureRelevance_Pearson(Xs1[col], ys1) for col in Xs1.columns]
+c2 = [FeatureRelevance_Pearson(Xs2[col], ys2) for col in Xs2.columns]
+c3 = [FeatureRelevance_Pearson(Xs3[col], ys3) for col in Xs3.columns]
 
 fig, ax = plt.subplots(nrows=3, ncols=1)
 sns.barplot(x=Xs1.columns, y=c1, ax=ax[0])
@@ -181,26 +192,21 @@ ax[0].set_ylabel('Corr - 1 grade', fontsize=18)
 ax[1].set_ylabel('Corr - 3 grades', fontsize=18)
 ax[2].set_ylabel('Corr - DoE', fontsize=18)
 
-#%% Nonlinearity
-mi1 = mutual_info_regression(Xs1, ys1)
-mi1 /= mi1.max()
-mi2 = mutual_info_regression(Xs2, ys2)
-mi2 /= mi2.max()
-mi3 = mutual_info_regression(Xs3, ys3)
-mi3 /= mi3.max()
+# Nonlinearity of X effects with Y
+su1 = [FeatureRelevance_MI(Xs1[col].values, ys1) for col in Xs1.columns]
+su2 = [FeatureRelevance_MI(Xs2[col].values, ys2) for col in Xs2.columns]
+su3 = [FeatureRelevance_MI(Xs3[col].values, ys3) for col in Xs3.columns]
 
 fig, ax = plt.subplots(nrows=3, ncols=1)
-sns.barplot(x=Xs1.columns, y=mi1, ax=ax[0])
-sns.barplot(x=Xs2.columns, y=mi2, ax=ax[1])
-sns.barplot(x=Xs3.columns, y=mi3, ax=ax[2])
-ax[0].set_ylabel('MI - 1 grade', fontsize=18)
-ax[1].set_ylabel('MI - 3 grades', fontsize=18)
-ax[2].set_ylabel('MI - DoE', fontsize=18)
+sns.barplot(x=Xs1.columns, y=su1, ax=ax[0])
+sns.barplot(x=Xs2.columns, y=su2, ax=ax[1])
+sns.barplot(x=Xs3.columns, y=su3, ax=ax[2])
+ax[0].set_ylabel('SU - 1 grade', fontsize=18)
+ax[1].set_ylabel('SU - 3 grades', fontsize=18)
+ax[2].set_ylabel('SU - DoE', fontsize=18)
 
-#%% Granularity
-# See the smallest unit of a variable
-
-#%% Information content
+#%% D6 - Generalizability
+# Information content / Data diversity
 fig, ax = plt.subplots(nrows=1, ncols=3)
 hc.dendrogram(
     hc.linkage(Z1, method='ward'), 
@@ -239,45 +245,36 @@ plt.tight_layout()
 #     )
 # hc_class = cluster.fit_predict(Z)
 
-# # Plot scores HC
-# dfT['HC class'] = hc_class
-# sns.pairplot(
-#     data=dfT,
-#     vars=[f'PC{i}' for i in range(1,2+1)],
-#     hue='HC class',
-#     palette='tab10'
-#     )
+# #%% Entropy
+# # Fit a KDE to the data
+# kde1 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys1.values.reshape(-1, 1))
+# kde2 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys2.values.reshape(-1, 1))
+# kde3 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys3.values.reshape(-1, 1))
 
-#%% Entropy
-# Fit a KDE to the data
-kde1 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys1.values.reshape(-1, 1))
-kde2 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys2.values.reshape(-1, 1))
-kde3 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys3.values.reshape(-1, 1))
+# # Use the KDE to estimate the probability distribution of the data
+# y_min1, y_max1 = ys1.min(), ys1.max()
+# y_min2, y_max2 = ys2.min(), ys2.max()
+# y_min3, y_max3 = ys3.min(), ys3.max()
 
-# Use the KDE to estimate the probability distribution of the data
-y_min1, y_max1 = ys1.min(), ys1.max()
-y_min2, y_max2 = ys2.min(), ys2.max()
-y_min3, y_max3 = ys3.min(), ys3.max()
+# x1 = np.linspace(y_min1, y_max1, 1000)
+# x2 = np.linspace(y_min2, y_max2, 1000)
+# x3 = np.linspace(y_min3, y_max3, 1000)
 
-x1 = np.linspace(y_min1, y_max1, 1000)
-x2 = np.linspace(y_min2, y_max2, 1000)
-x3 = np.linspace(y_min3, y_max3, 1000)
+# log_prob1 = kde1.score_samples(x1.reshape(-1, 1))
+# prob1 = np.exp(log_prob1)
+# log_prob2 = kde2.score_samples(x2.reshape(-1, 1))
+# prob2 = np.exp(log_prob2)
+# log_prob3 = kde3.score_samples(x3.reshape(-1, 1))
+# prob3 = np.exp(log_prob3)
 
-log_prob1 = kde1.score_samples(x1.reshape(-1, 1))
-prob1 = np.exp(log_prob1)
-log_prob2 = kde2.score_samples(x2.reshape(-1, 1))
-prob2 = np.exp(log_prob2)
-log_prob3 = kde3.score_samples(x3.reshape(-1, 1))
-prob3 = np.exp(log_prob3)
+# fig, ax = plt.subplots()
+# ax.plot(x1, prob1)
+# ax.plot(x2, prob2)
+# ax.plot(x3, prob3)
 
-fig, ax = plt.subplots()
-ax.plot(x1, prob1)
-ax.plot(x2, prob2)
-ax.plot(x3, prob3)
-
-kl1 = rel_entr(ys1.values, ys1.values).sum() # ou Z-score
-kl2 = rel_entr(ys2.values, ys2.values).sum()
-kl3 = rel_entr(ys3.values, ys3.values).sum()
+# kl1 = rel_entr(ys1.values, ys1.values).sum() # ou Z-score
+# kl2 = rel_entr(ys2.values, ys2.values).sum()
+# kl3 = rel_entr(ys3.values, ys3.values).sum()
 
 end = time.time()
 print('Run time: {:.0f} seconds'.format(end-start))
