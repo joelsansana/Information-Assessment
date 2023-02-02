@@ -24,3 +24,21 @@ def ParallelAnalysis(data, percentile_tresh=90, n_iter=1000, n_components=None):
             n_components_to_retain += 1
     
     return original_eigenvalues, threshold_eigenvalues, n_components_to_retain
+
+def FeatureRelevance_Pearson(x, y, n_iter=100):
+    coefficient = pearsonr(x, y)[0]
+    
+    random_coefficient = [
+        pearsonr(x, np.random.permutation(y))[0] for i in range(n_iter)
+        ]
+    
+    return np.sum(np.abs(random_coefficient) >= np.abs(coefficient))/n_iter
+
+def FeatureRelevance_MI(x, y, n_iter=100):
+    coefficient = mutual_info_regression(x.reshape(-1, 1), y)
+    
+    random_coefficient = [
+        mutual_info_regression(x.reshape(-1, 1), np.random.permutation(y)) for i in range(n_iter)
+        ]
+    
+    return np.sum(random_coefficient >= coefficient)/n_iter
