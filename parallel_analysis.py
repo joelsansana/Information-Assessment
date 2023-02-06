@@ -1,5 +1,7 @@
 import numpy as np
 from sklearn.decomposition import PCA
+from scipy.stats import pearsonr
+from sklearn.feature_selection import mutual_info_regression
 
 def ParallelAnalysis(data, percentile_tresh=90, n_iter=1000, n_components=None):
     # Perform PCA on the normalized data
