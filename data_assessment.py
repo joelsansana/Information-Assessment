@@ -9,17 +9,15 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from parallel_analysis import *
 from pylab import rcParams
-from scipy.cluster import hierarchy as hc
-from scipy.special import rel_entr
-from scipy.stats import entropy, gaussian_kde, pearsonr
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.decomposition import PCA
-from sklearn.feature_selection import mutual_info_regression
-from sklearn.neighbors import KernelDensity
+from scipy.stats import t as ttest
+from sklearn.cluster import KMeans
+from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
+from whitebox import Reactor
 
 plt.style.use('seaborn-whitegrid')
 rcParams['figure.figsize'] = 15, 8
+rcParams["savefig.dpi"] = 300
 
 #%% Get data
 df = pd.read_csv('datasets/dataset1/csv_measurements.csv')
@@ -33,6 +31,9 @@ ts1 = t[:-720]
 Xs1 = X.iloc[:-720, :]
 ys1 = y[:-720]
 
+us1 = np.array([Xs1.iloc[:, 1], Xs1.iloc[:, 4], Xs1.iloc[:, 5]+273.15, \
+    Xs1.iloc[:, 3]+273.15])
+
 df = pd.read_csv('datasets/dataset2/csv_measurements.csv')
 df = df.iloc[:-1:60, :]
 
@@ -44,6 +45,9 @@ ts2 = t[:-720]
 Xs2 = X.iloc[:-720, :]
 ys2 = y[:-720]
 
+us2 = np.array([Xs2.iloc[:, 1], Xs2.iloc[:, 4], Xs2.iloc[:, 5]+273.15, \
+    Xs2.iloc[:, 3]+273.15])
+
 df = pd.read_csv('datasets/dataset3/csv_measurements.csv')
 df = df.iloc[:-1:60, :]
 
@@ -54,6 +58,9 @@ y = df.iloc[:, -1]
 ts3 = t[:-720]
 Xs3 = X.iloc[:-720, :]
 ys3 = y[:-720]
+
+us3 = np.array([Xs3.iloc[:, 1], Xs3.iloc[:, 4], Xs3.iloc[:, 5]+273.15, \
+    Xs3.iloc[:, 3]+273.15])
 
 #%% Visualization of key variables
 fig, ax = plt.subplots()
@@ -88,6 +95,8 @@ ax.set_title('Train set', fontsize=18)
 plt.xticks(fontsize=16)
 plt.yticks(fontsize=16)
 plt.legend(loc='best')
+
+plt.show()
 
 #%% D1 - Resolution
 # Granularity
@@ -124,6 +133,49 @@ max_time = Xs3.index.max()
 time_diff3 = max_time - min_time
 print("The measurement period is: ", time_diff3, "min")
 print("The frequency of measurement is: ", data_points3/time_diff3, "measurement/min")
+
+#%% First principle model
+wb_model = Reactor()
+
+par1 = wb_model.train(ts1, us1, ys1.values)
+svR1 = wb_model.predict(ts1, par1, us1)
+
+alpha = 0.05
+residuals1 = svR1[:, 3] - ys1
+dof = len(ts1) - len(par1)
+t_value = par1[0] / (np.std(residuals1) / np.sqrt(dof))
+p_value = ttest.sf(np.abs(t_value), dof)
+
+if p_value < alpha:
+    print("The reaction rate 1 is statistically significant with a p-value of {:.3f}".format(p_value))
+else:
+    print("The reaction rate 1 is not statistically significant with a p-value of {:.3f}".format(p_value))
+
+par2 = wb_model.train(ts2, us2, ys2.values)
+svR2 = wb_model.predict(ts2, par2, us2)
+
+residuals2 = svR2[:, 3] - ys2
+dof = len(ts2) - len(par2)
+t_value = par2[0] / (np.std(residuals2) / np.sqrt(dof))
+p_value = ttest.sf(np.abs(t_value), dof)
+
+if p_value < alpha:
+    print("The reaction rate 2 is statistically significant with a p-value of {:.3f}".format(p_value))
+else:
+    print("The reaction rate 2 is not statistically significant with a p-value of {:.3f}".format(p_value))
+    
+par3 = wb_model.train(ts3, us3, ys3.values)
+svR3 = wb_model.predict(ts3, par3, us3)
+
+residuals3 = svR3[:, 3] - ys3
+dof = len(ts3) - len(par3)
+t_value = par3[0] / (np.std(residuals3) / np.sqrt(dof))
+p_value = ttest.sf(np.abs(t_value), dof)
+
+if p_value < alpha:
+    print("The reaction rate 3 is statistically significant with a p-value of {:.3f}".format(p_value))
+else:
+    print("The reaction rate 3 is not statistically significant with a p-value of {:.3f}".format(p_value))
 
 #%% D2 - Structure
 # Colinearity (of X)
@@ -179,102 +231,126 @@ ax[0].legend(loc='upper right', fontsize=16)
 ax[1].legend(loc='upper right', fontsize=16)
 ax[2].legend(loc='upper right', fontsize=16)
 
-# Sparsity of X effects with Y
-c1 = [FeatureRelevance_Pearson(Xs1[col], ys1) for col in Xs1.columns]
-c2 = [FeatureRelevance_Pearson(Xs2[col], ys2) for col in Xs2.columns]
-c3 = [FeatureRelevance_Pearson(Xs3[col], ys3) for col in Xs3.columns]
+plt.show()
 
+#%% D2 - Structure
+# Sparsity of X effects with Y
+c1 = np.array([FeatureRelevance_Pearson(Xs1[col], ys1) for col in Xs1.columns])
+c2 = np.array([FeatureRelevance_Pearson(Xs2[col], ys2) for col in Xs2.columns])
+c3 = np.array([FeatureRelevance_Pearson(Xs3[col], ys3) for col in Xs3.columns])
+
+rcParams['text.usetex'] = True
 fig, ax = plt.subplots(nrows=3, ncols=1)
-sns.barplot(x=Xs1.columns, y=c1, ax=ax[0])
-sns.barplot(x=Xs2.columns, y=c2, ax=ax[1])
-sns.barplot(x=Xs3.columns, y=c3, ax=ax[2])
-ax[0].set_ylabel('Corr - 1 grade', fontsize=18)
-ax[1].set_ylabel('Corr - 3 grades', fontsize=18)
-ax[2].set_ylabel('Corr - DoE', fontsize=18)
+sns.barplot(x=Xs1.columns, y=np.where(c1[:,1]>0.05, 0, c1[:,0]), ax=ax[0])
+sns.barplot(x=Xs2.columns, y=np.where(c2[:,1]>0.05, 0, c2[:,0]), ax=ax[1])
+sns.barplot(x=Xs3.columns, y=np.where(c3[:,1]>0.05, 0, c3[:,0]), ax=ax[2])
+ax[0].set_ylabel(r'$\rho$ - 1 grade', fontsize=16)
+ax[1].set_ylabel(r'$\rho$ - 3 grades', fontsize=16)
+ax[2].set_ylabel(r'$\rho$ - DoE', fontsize=16)
+ax[0].set_title('Pearson Correlation Analysis', fontsize=18)
+rcParams['text.usetex'] = False
 
 # Nonlinearity of X effects with Y
-su1 = [FeatureRelevance_MI(Xs1[col].values, ys1) for col in Xs1.columns]
-su2 = [FeatureRelevance_MI(Xs2[col].values, ys2) for col in Xs2.columns]
-su3 = [FeatureRelevance_MI(Xs3[col].values, ys3) for col in Xs3.columns]
+mi1 = np.array([FeatureRelevance_MI(Xs1[col].values, ys1) for col in Xs1.columns]).astype('float64')
+mi2 = np.array([FeatureRelevance_MI(Xs2[col].values, ys2) for col in Xs2.columns]).astype('float64')
+mi3 = np.array([FeatureRelevance_MI(Xs3[col].values, ys3) for col in Xs3.columns]).astype('float64')
 
 fig, ax = plt.subplots(nrows=3, ncols=1)
-sns.barplot(x=Xs1.columns, y=su1, ax=ax[0])
-sns.barplot(x=Xs2.columns, y=su2, ax=ax[1])
-sns.barplot(x=Xs3.columns, y=su3, ax=ax[2])
-ax[0].set_ylabel('SU - 1 grade', fontsize=18)
-ax[1].set_ylabel('SU - 3 grades', fontsize=18)
-ax[2].set_ylabel('SU - DoE', fontsize=18)
+sns.barplot(x=Xs1.columns, y=np.where(mi1[:,1]>0.05, 0, mi1[:,0]), ax=ax[0])
+sns.barplot(x=Xs2.columns, y=np.where(mi2[:,1]>0.05, 0, mi2[:,0]), ax=ax[1])
+sns.barplot(x=Xs3.columns, y=np.where(mi3[:,1]>0.05, 0, mi3[:,0]), ax=ax[2])
+ax[0].set_ylabel('MI - 1 grade', fontsize=16)
+ax[1].set_ylabel('MI - 3 grades', fontsize=16)
+ax[2].set_ylabel('MI - DoE', fontsize=16)
+ax[0].set_title('Mutual Information Analysis', fontsize=18)
+
+plt.show()
 
 #%% D6 - Generalizability
 # Information content / Data diversity
-fig, ax = plt.subplots(nrows=1, ncols=3)
-hc.dendrogram(
-    hc.linkage(Z1, method='ward'), 
-    truncate_mode='lastp',
-    p=10,
-    color_threshold=75, 
-    above_threshold_color='y', 
-    ax=ax[0]
-    )
-hc.dendrogram(
-    hc.linkage(Z2, method='ward'), 
-    truncate_mode='lastp',
-    p=10,
-    color_threshold=75, 
-    above_threshold_color='y', 
-    ax=ax[1]
-    )
-hc.dendrogram(
-    hc.linkage(Z3, method='ward'), 
-    truncate_mode='lastp',
-    p=10,
-    color_threshold=75, 
-    above_threshold_color='y', 
-    ax=ax[2]
-    )
-ax[0].set_title('1 grade', fontsize=18)
-ax[1].set_title('3 grades', fontsize=18)
-ax[2].set_title('DoE', fontsize=18)
-plt.xticks(rotation=90)
-plt.tight_layout()
+ssd = []
+dbi = []
+chi = []
+ss = []
 
-# cluster = AgglomerativeClustering(
-#     n_clusters=3, 
-#     affinity='euclidean', 
-#     linkage='ward'
-#     )
-# hc_class = cluster.fit_predict(Z)
+for k in range(2,10):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(Z1)
+    ssd.append(kmeans.inertia_)
+    dbi.append(davies_bouldin_score(Z1, kmeans.labels_))
+    chi.append(calinski_harabasz_score(Z1, kmeans.labels_))
+    ss.append(silhouette_score(Z1, kmeans.labels_, sample_size=300))
 
-# #%% Entropy
-# # Fit a KDE to the data
-# kde1 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys1.values.reshape(-1, 1))
-# kde2 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys2.values.reshape(-1, 1))
-# kde3 = KernelDensity(kernel='gaussian', bandwidth=0.75).fit(ys3.values.reshape(-1, 1))
+fig, ax = plt.subplots(nrows=2, ncols=2)
+ax[0,0].plot(range(2, 10), ssd, 'o-', color='tab:blue')
+ax[0,0].set_xlabel('# Clusters', fontsize=16) 
+ax[0,0].set_ylabel('Sum of squared distances/Inertia', fontsize=16)
+ax[1,0].plot(range(2, 10), chi, 'v-', color='tab:orange')
+ax[1,0].set_xlabel('# Clusters', fontsize=16) 
+ax[1,0].set_ylabel('Calinski-Harabasz Index', fontsize=16)
+ax[0,1].plot(range(2, 10), dbi, 'd-', color='tab:green')
+ax[0,1].set_xlabel('# Clusters', fontsize=16) 
+ax[0,1].set_ylabel('Davies-Bouldin Index', fontsize=16)
+ax[1,1].plot(range(2, 10), ss, 'x-', color='tab:red')
+ax[1,1].set_xlabel('# Clusters', fontsize=16) 
+ax[1,1].set_ylabel('Silhouette Coefficient', fontsize=16)
+ax[0,0].set_title('Dataset 1 - 1 grade', fontsize=18)
 
-# # Use the KDE to estimate the probability distribution of the data
-# y_min1, y_max1 = ys1.min(), ys1.max()
-# y_min2, y_max2 = ys2.min(), ys2.max()
-# y_min3, y_max3 = ys3.min(), ys3.max()
+ssd = []
+dbi = []
+chi = []
+ss = []
 
-# x1 = np.linspace(y_min1, y_max1, 1000)
-# x2 = np.linspace(y_min2, y_max2, 1000)
-# x3 = np.linspace(y_min3, y_max3, 1000)
+for k in range(2,10):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(Z2)
+    ssd.append(kmeans.inertia_)
+    dbi.append(davies_bouldin_score(Z2, kmeans.labels_))
+    chi.append(calinski_harabasz_score(Z2, kmeans.labels_))
+    ss.append(silhouette_score(Z2, kmeans.labels_, sample_size=300))
 
-# log_prob1 = kde1.score_samples(x1.reshape(-1, 1))
-# prob1 = np.exp(log_prob1)
-# log_prob2 = kde2.score_samples(x2.reshape(-1, 1))
-# prob2 = np.exp(log_prob2)
-# log_prob3 = kde3.score_samples(x3.reshape(-1, 1))
-# prob3 = np.exp(log_prob3)
+fig, ax = plt.subplots(nrows=2, ncols=2)
+ax[0,0].plot(range(2, 10), ssd, 'o-', color='tab:blue')
+ax[0,0].set_xlabel('# Clusters', fontsize=16) 
+ax[0,0].set_ylabel('Sum of squared distances/Inertia', fontsize=16)
+ax[1,0].plot(range(2, 10), chi, 'v-', color='tab:orange')
+ax[1,0].set_xlabel('# Clusters', fontsize=16) 
+ax[1,0].set_ylabel('Calinski-Harabasz Index', fontsize=16)
+ax[0,1].plot(range(2, 10), dbi, 'd-', color='tab:green')
+ax[0,1].set_xlabel('# Clusters', fontsize=16) 
+ax[0,1].set_ylabel('Davies-Bouldin Index', fontsize=16)
+ax[1,1].plot(range(2, 10), ss, 'x-', color='tab:red')
+ax[1,1].set_xlabel('# Clusters', fontsize=16) 
+ax[1,1].set_ylabel('Silhouette Coefficient', fontsize=16)
+ax[0,0].set_title('Dataset 2 - 3 grades', fontsize=18)
 
-# fig, ax = plt.subplots()
-# ax.plot(x1, prob1)
-# ax.plot(x2, prob2)
-# ax.plot(x3, prob3)
+ssd = []
+dbi = []
+chi = []
+ss = []
 
-# kl1 = rel_entr(ys1.values, ys1.values).sum() # ou Z-score
-# kl2 = rel_entr(ys2.values, ys2.values).sum()
-# kl3 = rel_entr(ys3.values, ys3.values).sum()
+for k in range(2,10):
+    kmeans = KMeans(n_clusters=k)
+    kmeans.fit(Z3)
+    ssd.append(kmeans.inertia_)
+    dbi.append(davies_bouldin_score(Z3, kmeans.labels_))
+    chi.append(calinski_harabasz_score(Z3, kmeans.labels_))
+    ss.append(silhouette_score(Z3, kmeans.labels_, sample_size=300))
+
+fig, ax = plt.subplots(nrows=2, ncols=2)
+ax[0,0].plot(range(2, 10), ssd, 'o-', color='tab:blue')
+ax[0,0].set_xlabel('# Clusters', fontsize=16) 
+ax[0,0].set_ylabel('Sum of squared distances/Inertia', fontsize=16)
+ax[1,0].plot(range(2, 10), chi, 'v-', color='tab:orange')
+ax[1,0].set_xlabel('# Clusters', fontsize=16) 
+ax[1,0].set_ylabel('Calinski-Harabasz Index', fontsize=16)
+ax[0,1].plot(range(2, 10), dbi, 'd-', color='tab:green')
+ax[0,1].set_xlabel('# Clusters', fontsize=16) 
+ax[0,1].set_ylabel('Davies-Bouldin Index', fontsize=16)
+ax[1,1].plot(range(2, 10), ss, 'x-', color='tab:red')
+ax[1,1].set_xlabel('# Clusters', fontsize=16) 
+ax[1,1].set_ylabel('Silhouette Coefficient', fontsize=16)
+ax[0,0].set_title('Dataset 3 - DoE', fontsize=18)
 
 end = time.time()
 print('Run time: {:.0f} seconds'.format(end-start))
