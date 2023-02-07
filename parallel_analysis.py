@@ -33,14 +33,17 @@ def FeatureRelevance_Pearson(x, y, n_iter=100):
     random_coefficient = [
         pearsonr(x, np.random.permutation(y))[0] for i in range(n_iter)
         ]
-    
-    return np.sum(np.abs(random_coefficient) >= np.abs(coefficient))/n_iter
+    if coefficient>=0:
+        pvalue = np.sum(random_coefficient >= coefficient)/n_iter
+    else:
+        pvalue = np.sum(random_coefficient <= coefficient)/n_iter
+    return coefficient, pvalue
 
 def FeatureRelevance_MI(x, y, n_iter=100):
-    coefficient = mutual_info_regression(x.reshape(-1, 1), y)
+    coefficient = mutual_info_regression(x.reshape(-1, 1), y).astype('float64')
     
     random_coefficient = [
         mutual_info_regression(x.reshape(-1, 1), np.random.permutation(y)) for i in range(n_iter)
         ]
-    
-    return np.sum(random_coefficient >= coefficient)/n_iter
+    pvalue = np.sum(random_coefficient >= coefficient)/n_iter
+    return coefficient, pvalue
