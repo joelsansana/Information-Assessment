@@ -267,7 +267,7 @@ ax[0].set_title('Mutual Information Analysis', fontsize=18)
 plt.show()
 
 #%% D6 - Generalizability
-# Information content / Data diversity
+# Multimode / Information content / Data diversity
 ssd = []
 dbi = []
 chi = []
