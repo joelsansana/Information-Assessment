@@ -1,3 +1,30 @@
+"""
+InfoQ roadmap: data-quality and prior-knowledge assessment for the
+biodiesel reactor hybrid-modelling case study.
+
+The script implements an information-quality roadmap along three
+dimensions:
+
+* **D1 -- Resolution**: number of samples, cardinality of each
+  feature, sampling frequency.
+* **D2 -- Structure**: colinearity of ``X`` (Pearson correlation
+  matrix plus Horn's parallel analysis), sparsity of the X/Y
+  relationship (Pearson with permutation test) and nonlinearity
+  (mutual information with permutation test).
+* **D6 -- Generalizability**: multimode discovery via K-Means and
+  four internal validation indices (inertia, Calinski-Harabasz,
+  Davies-Bouldin, silhouette).
+
+In addition, the script fits the first-principles
+:class:`whitebox.Reactor` model to each dataset and reports a
+t-statistic for the global kinetic parameter.
+
+The file is organised as a sequence of Spyder/Jupyter "cells"
+delimited by ``#%%`` markers. Run it top-to-bottom in an IDE that
+respects cell boundaries or as a plain script -- both work because
+``matplotlib`` figures are produced by explicit ``plt.show()`` calls.
+"""
+
 #%% Init
 import time
 start = time.time()
